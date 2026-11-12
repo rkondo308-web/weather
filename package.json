@@ -1,13 +1,17 @@
 {
   "name": "current-weather",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "A small Vercel app showing the current temperature and humidity for any city.",
+  "description": "Weather dashboard with a Neon-backed ESP32 temperature and humidity sensor.",
   "scripts": {
     "dev": "npx vercel dev",
-    "deploy": "npx vercel --prod"
+    "deploy": "npx vercel --prod",
+    "simulate": "node scripts/simulate-sensor.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
   }
 }

@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
 };
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+const SENSOR_POLL_MS = 5000;
 const SEARCH_DEBOUNCE_MS = 350;
 
 const WEATHER_CODES = {
@@ -62,6 +63,11 @@ const dom = {
   form: document.getElementById("search-form"),
   input: document.getElementById("search-input"),
   results: document.getElementById("search-results"),
+  sensorStatus: document.getElementById("sensor-status"),
+  sensorDevice: document.getElementById("sensor-device"),
+  sensorTemperature: document.getElementById("sensor-temperature"),
+  sensorHumidity: document.getElementById("sensor-humidity"),
+  sensorMeta: document.getElementById("sensor-meta"),
 };
 
 const state = {
@@ -72,6 +78,11 @@ const state = {
   weatherRequest: null,
   searchRequest: null,
   searchTimer: null,
+  sensorReading: null,
+  sensorLoading: true,
+  sensorUnavailable: false,
+  sensorMessage: "",
+  sensorTimer: null,
 };
 
 /* ---------- storage + URL ---------- */
@@ -305,6 +316,147 @@ function setStatus(message, isError = false) {
   state.statusError = Boolean(isError);
 }
 
+/* ---------- indoor sensor ---------- */
+
+function sensorUnit() {
+  return state.units === "fahrenheit" ? "°F" : "°C";
+}
+
+function sensorTemperatureText(celsius) {
+  if (!Number.isFinite(celsius)) return "--";
+  const value = state.units === "fahrenheit" ? (celsius * 9) / 5 + 32 : celsius;
+  return `${value.toFixed(1)}${sensorUnit()}`;
+}
+
+function sensorAgeSeconds() {
+  const reading = state.sensorReading;
+  if (!reading || !reading.recordedAt) return null;
+  const timestamp = Date.parse(reading.recordedAt);
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, (Date.now() - timestamp) / 1000);
+}
+
+function describeAge(seconds) {
+  if (!Number.isFinite(seconds)) return "";
+  if (seconds < 1) return "just now";
+  if (seconds < 60) return `${Math.round(seconds)}s ago`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  return `${Math.round(seconds / 3600)} h ago`;
+}
+
+function formatSensorTime(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function setSensorStatus(label, stateName) {
+  if (dom.sensorStatus.textContent !== label) dom.sensorStatus.textContent = label;
+  if (dom.sensorStatus.dataset.state !== stateName) {
+    dom.sensorStatus.dataset.state = stateName;
+  }
+}
+
+function renderSensor() {
+  const reading = state.sensorReading;
+
+  if (!reading) {
+    dom.sensorDevice.textContent = "ESP32";
+    dom.sensorTemperature.textContent = "--";
+    dom.sensorHumidity.textContent = "--";
+
+    if (state.sensorUnavailable) {
+      setSensorStatus("Unavailable", "unavailable");
+      dom.sensorMeta.textContent = state.sensorMessage;
+    } else if (state.sensorLoading) {
+      setSensorStatus("Connecting…", "loading");
+      dom.sensorMeta.textContent = "Waiting for the first reading…";
+    } else {
+      setSensorStatus("No data", "empty");
+      dom.sensorMeta.textContent = "Waiting for the first reading…";
+    }
+    return;
+  }
+
+  const age = sensorAgeSeconds();
+  dom.sensorDevice.textContent = reading.deviceId || "ESP32";
+  dom.sensorTemperature.textContent = sensorTemperatureText(reading.temperature);
+  dom.sensorHumidity.textContent = Number.isFinite(reading.humidity)
+    ? `${reading.humidity.toFixed(1)}%`
+    : "--";
+
+  if (state.sensorUnavailable) {
+    setSensorStatus("Unavailable", "unavailable");
+    dom.sensorMeta.textContent = Number.isFinite(age)
+      ? `${state.sensorMessage} Last reading ${describeAge(age)}.`
+      : state.sensorMessage;
+    return;
+  }
+
+  const freshness =
+    age === null ? "offline" : age <= 30 ? "live" : age <= 300 ? "stale" : "offline";
+  setSensorStatus(
+    freshness === "live" ? "Live" : freshness === "stale" ? "Stale" : "Offline",
+    freshness,
+  );
+
+  const clock = formatSensorTime(reading.recordedAt);
+  const parts = [];
+  if (Number.isFinite(age)) parts.push(`Updated ${describeAge(age)}`);
+  if (clock) parts.push(clock);
+  dom.sensorMeta.textContent = parts.join(" · ") || "Waiting for the first reading…";
+}
+
+async function loadSensor() {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch("/api/readings", {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    const data = await response.json().catch(() => null);
+
+    if (response.status === 503) {
+      state.sensorUnavailable = true;
+      state.sensorMessage = (data && data.error) || "Database not configured.";
+      state.sensorReading = null;
+      return;
+    }
+
+    if (!response.ok || !data) {
+      throw new Error(
+        (data && data.error) || `Sensor API returned ${response.status}.`,
+      );
+    }
+
+    state.sensorUnavailable = false;
+    state.sensorMessage = "";
+    state.sensorReading = data.reading || null;
+  } catch (error) {
+    state.sensorUnavailable = true;
+    state.sensorMessage =
+      error.name === "AbortError"
+        ? "The sensor API timed out."
+        : "Couldn't reach the sensor API.";
+  } finally {
+    window.clearTimeout(timeout);
+    state.sensorLoading = false;
+    renderSensor();
+  }
+}
+
+async function pollSensor() {
+  if (document.visibilityState === "visible") await loadSensor();
+  window.clearTimeout(state.sensorTimer);
+  state.sensorTimer = window.setTimeout(pollSensor, SENSOR_POLL_MS);
+}
+
 /* ---------- search ---------- */
 
 function closeResults() {
@@ -457,6 +609,7 @@ function toggleUnits() {
   state.units = state.units === "celsius" ? "fahrenheit" : "celsius";
   safeWrite(STORAGE_KEYS.units, state.units);
   applyUnits();
+  renderSensor();
   loadWeather();
 }
 
@@ -521,6 +674,7 @@ function init() {
     if (document.visibilityState === "visible" && Date.now() - state.lastUpdated > REFRESH_INTERVAL_MS) {
       loadWeather();
     }
+    if (document.visibilityState === "visible") loadSensor();
   });
 
   window.setInterval(() => {
@@ -528,6 +682,10 @@ function init() {
   }, REFRESH_INTERVAL_MS);
 
   window.setInterval(updateRelativeStatus, 30 * 1000);
+  window.setInterval(renderSensor, 1000);
+
+  renderSensor();
+  pollSensor();
 
   loadWeather();
 }

@@ -81,6 +81,35 @@
         </p>
       </section>
 
+      <section class="sensor" aria-labelledby="sensor-title">
+        <div class="sensor__head">
+          <div class="sensor__identity">
+            <h2 class="sensor__title" id="sensor-title">Indoor sensor</h2>
+            <p class="sensor__device" id="sensor-device">ESP32</p>
+          </div>
+          <span
+            class="sensor__status"
+            id="sensor-status"
+            data-state="loading"
+            role="status"
+            aria-live="polite"
+          >
+            Connecting…
+          </span>
+        </div>
+        <div class="sensor__readings">
+          <div class="sensor__item">
+            <span class="sensor__label">Temperature</span>
+            <span class="sensor__value" id="sensor-temperature">--</span>
+          </div>
+          <div class="sensor__item">
+            <span class="sensor__label">Humidity</span>
+            <span class="sensor__value" id="sensor-humidity">--</span>
+          </div>
+        </div>
+        <p class="sensor__meta" id="sensor-meta">Waiting for the first reading…</p>
+      </section>
+
       <section class="search" aria-label="Change location">
         <form class="search__form" id="search-form" role="search" novalidate>
           <label class="visually-hidden" for="search-input">Search for a city</label>
