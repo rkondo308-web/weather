@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Current Weather</title>
+    <meta
+      name="description"
+      content="Current temperature and humidity for any city, powered by Open-Meteo."
+    />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%85%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-theme="clear">
+    <main class="app">
+      <h1 class="visually-hidden">Current Weather</h1>
+      <header class="app__header">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true">⛅</span>
+          <span class="brand__name">Current Weather</span>
+        </div>
+        <button
+          id="unit-toggle"
+          class="unit-toggle"
+          type="button"
+          aria-label="Show temperatures in Fahrenheit"
+          title="Switch units"
+        >
+          °C
+        </button>
+      </header>
+
+      <section class="card" aria-labelledby="place-name">
+        <div class="card__top">
+          <div>
+            <p class="place" id="place-name">Boston, Massachusetts</p>
+            <p class="observed" id="observed">Local observation time</p>
+          </div>
+          <button class="icon-button" id="refresh" type="button" aria-label="Refresh weather">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div class="reading">
+          <span class="reading__icon" id="condition-icon" aria-hidden="true">☀️</span>
+          <div class="reading__text">
+            <p class="reading__temp">
+              <span id="temperature">--</span><span class="reading__unit" id="unit-label">°C</span>
+            </p>
+            <p class="reading__condition" id="condition">Loading conditions…</p>
+          </div>
+        </div>
+
+        <dl class="stats">
+          <div class="stat">
+            <dt>Humidity</dt>
+            <dd id="humidity">--</dd>
+          </div>
+          <div class="stat">
+            <dt>Feels like</dt>
+            <dd id="apparent">--</dd>
+          </div>
+          <div class="stat">
+            <dt>Wind</dt>
+            <dd id="wind">--</dd>
+          </div>
+        </dl>
+
+        <p class="status" id="status" role="status" aria-live="polite">
+          Fetching current conditions…
+        </p>
+      </section>
+
+      <section class="search" aria-label="Change location">
+        <form class="search__form" id="search-form" role="search" novalidate>
+          <label class="visually-hidden" for="search-input">Search for a city</label>
+          <input
+            class="search__input"
+            id="search-input"
+            type="search"
+            name="q"
+            placeholder="Search for a city…"
+            autocomplete="off"
+            spellcheck="false"
+            enterkeyhint="search"
+          />
+          <button class="button button--primary" type="submit">Search</button>
+        </form>
+        <ul class="results" id="search-results" hidden></ul>
+        <div class="search__actions">
+          <button class="button button--ghost" id="locate" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path
+                d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="2" />
+            </svg>
+            Use my location
+          </button>
+          <p class="credit">
+            Data from <a href="https://open-meteo.com/" rel="noreferrer noopener" target="_blank">Open-Meteo</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

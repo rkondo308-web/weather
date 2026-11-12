@@ -1,0 +1,13 @@
+{
+  "name": "current-weather",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A small Vercel app showing the current temperature and humidity for any city.",
+  "scripts": {
+    "dev": "npx vercel dev",
+    "deploy": "npx vercel --prod"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
