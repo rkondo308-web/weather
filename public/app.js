@@ -196,7 +196,11 @@ async function loadWeather() {
   if (state.weatherRequest) state.weatherRequest.abort();
   const controller = new AbortController();
   state.weatherRequest = controller;
-  const timeout = window.setTimeout(() => controller.abort(), 12000);
+  let timedOut = false;
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 12000);
 
   dom.card.classList.add("is-loading");
   dom.refresh.classList.add("is-busy");
@@ -226,7 +230,12 @@ async function loadWeather() {
     renderWeather(data);
     state.lastUpdated = Date.now();
   } catch (error) {
-    if (error.name === "AbortError") return;
+    if (error.name === "AbortError") {
+      if (timedOut && state.weatherRequest === controller) {
+        setStatus("The weather service took too long to respond. Try again.", true);
+      }
+      return;
+    }
     setStatus(
       `Couldn't load the weather. ${error.message || "Check your connection and try again."}`,
       true,
@@ -299,6 +308,10 @@ function setStatus(message, isError = false) {
 /* ---------- search ---------- */
 
 function closeResults() {
+  if (state.searchRequest) {
+    state.searchRequest.abort();
+    state.searchRequest = null;
+  }
   dom.results.hidden = true;
   dom.results.textContent = "";
 }
