@@ -285,17 +285,17 @@ function renderWeather(data) {
 function accentFor(theme) {
   switch (theme) {
     case "rain":
-      return "#8fd3f4";
+      return "#2a6f97";
     case "snow":
-      return "#cfe6ff";
+      return "#3d6f96";
     case "storm":
-      return "#c3b1ff";
+      return "#575ba6";
     case "fog":
-      return "#cdd7de";
+      return "#55707f";
     case "cloud":
-      return "#d7e3ef";
+      return "#3a6b92";
     default:
-      return "#7cc4ff";
+      return "#1b6ca8";
   }
 }
 
