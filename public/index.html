@@ -145,6 +145,36 @@
           </p>
         </div>
       </section>
+      <section class="history" aria-labelledby="history-title">
+        <div class="history__head">
+          <div>
+            <h2 class="history__title" id="history-title">Past 24 hours</h2>
+            <p class="history__place" id="history-place">Boston, Massachusetts</p>
+          </div>
+          <span class="history__badge">Hourly · Open-Meteo</span>
+        </div>
+        <div class="history__scroll">
+          <table class="history__table">
+            <caption class="visually-hidden">
+              Hourly temperature, humidity, and conditions for the past 24 hours
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Conditions</th>
+                <th scope="col" class="is-numeric">Temp</th>
+                <th scope="col" class="is-numeric">Humidity</th>
+              </tr>
+            </thead>
+            <tbody id="history-body">
+              <tr class="history__message">
+                <td colspan="4">Loading history…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
     </main>
 
     <script src="/app.js" defer></script>

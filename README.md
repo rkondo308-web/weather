@@ -15,6 +15,8 @@ humidity posted by the ESP32. No framework, no build step.
 - Auto-refreshes weather every 10 minutes
 - **Indoor sensor card** polls Neon every 5 seconds for the latest ESP32 reading,
   shows a Live / Stale / Offline badge, and follows the °C / °F toggle
+- **Past 24 hours table** with the current hour plus the previous 23 for the
+  selected city: time, conditions, temperature, and humidity (Open-Meteo)
 - `POST /api/readings` stores sensor readings in Neon; `GET /api/readings`
   returns the newest one
 
@@ -27,10 +29,11 @@ Massachusetts. Search for a city or use the location button to change it.
 public/                    Static site (served as-is)
   index.html
   styles.css
-  app.js                   Weather, search, and sensor polling
+  app.js                   Weather, search, sensor polling, and history table
 api/
   weather.js               GET  /api/weather?latitude=&longitude=&units=
   geocode.js               GET  /api/geocode?q=city
+  history.js               GET  /api/history?latitude=&longitude=&units=
   readings.js              POST /api/readings  (store)
                            GET  /api/readings  (latest)
 db/schema.sql              readings table + index (created automatically)
@@ -38,10 +41,30 @@ firmware/esp32_weather/    Arduino sketch + secrets.example.h
 scripts/simulate-sensor.mjs  Posts fake readings every 5 s for testing
 ```
 
-The two weather functions proxy and normalize the
+The weather functions proxy and normalize the
 [Open-Meteo](https://open-meteo.com/) APIs, so the browser only talks to this
-deployment. Weather responses are cached at the edge for 5 minutes; geocoding
-results for a day. Sensor responses are never cached.
+deployment. Current conditions are cached at the edge for 5 minutes, the hourly
+history for 10 minutes, and geocoding results for a day. Sensor responses are
+never cached.
+
+### Hourly history
+
+`GET /api/history?latitude=42.36&longitude=-71.06&units=celsius` returns the
+current hour plus the previous 23 hours for that place, oldest first:
+
+```json
+{
+  "hours": [
+    { "time": "2026-11-11T17:00", "temperature": 10, "humidity": 41, "weatherCode": 0 },
+    { "time": "2026-11-11T18:00", "temperature": 9.4, "humidity": 44, "weatherCode": 1 }
+  ],
+  "units": { "temperature": "°C" },
+  "timezone": "America/New_York"
+}
+```
+
+The table uses the same latitude/longitude as the selected city, updates when
+the place or °C/°F toggle changes, and refreshes every 10 minutes.
 
 Open-Meteo is free for non-commercial use and needs no API key. If you plan to
 put this in front of heavy traffic, check their

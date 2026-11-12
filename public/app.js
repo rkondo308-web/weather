@@ -68,6 +68,8 @@ const dom = {
   sensorTemperature: document.getElementById("sensor-temperature"),
   sensorHumidity: document.getElementById("sensor-humidity"),
   sensorMeta: document.getElementById("sensor-meta"),
+  historyPlace: document.getElementById("history-place"),
+  historyBody: document.getElementById("history-body"),
 };
 
 const state = {
@@ -83,6 +85,8 @@ const state = {
   sensorUnavailable: false,
   sensorMessage: "",
   sensorTimer: null,
+  historyRequest: null,
+  historyLoaded: false,
 };
 
 /* ---------- storage + URL ---------- */
@@ -457,6 +461,145 @@ async function pollSensor() {
   state.sensorTimer = window.setTimeout(pollSensor, SENSOR_POLL_MS);
 }
 
+/* ---------- hourly weather history ---------- */
+
+function formatHistoryHour(localIso) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(localIso || "");
+  if (!match) return "";
+  const [, year, month, day, hour, minute] = match.map(Number);
+  const wallClock = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: "short",
+      hour: "numeric",
+      timeZone: "UTC",
+    }).format(wallClock);
+  } catch {
+    return "";
+  }
+}
+
+function showHistoryMessage(message) {
+  const row = document.createElement("tr");
+  row.className = "history__message";
+  const cell = document.createElement("td");
+  cell.colSpan = 4;
+  cell.textContent = message;
+  row.append(cell);
+  dom.historyBody.replaceChildren(row);
+}
+
+function historyReadingCell(text) {
+  const cell = document.createElement("td");
+  cell.className = "is-numeric";
+  cell.textContent = text;
+  return cell;
+}
+
+function renderHistory(data) {
+  dom.historyPlace.textContent = state.place.name;
+
+  const hours = Array.isArray(data.hours) ? data.hours : [];
+  if (!hours.length) {
+    showHistoryMessage("No hourly data available for this location.");
+    return;
+  }
+
+  const unit =
+    (data.units && data.units.temperature) ||
+    (state.units === "fahrenheit" ? "°F" : "°C");
+  const fragment = document.createDocumentFragment();
+
+  hours
+    .slice()
+    .reverse()
+    .forEach((row, index) => {
+      const isNow = index === 0;
+      const tr = document.createElement("tr");
+      if (isNow) tr.className = "history__row-now";
+
+      const timeCell = document.createElement("td");
+      timeCell.className = "history__time";
+      const time = document.createElement("time");
+      time.dateTime = row.time || "";
+      time.textContent = isNow ? "Now" : formatHistoryHour(row.time);
+      timeCell.append(time);
+
+      const conditionCell = document.createElement("td");
+      const condition = WEATHER_CODES[row.weatherCode];
+      const conditionWrap = document.createElement("span");
+      conditionWrap.className = "history__condition";
+      const icon = document.createElement("span");
+      icon.className = "history__condition-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = condition ? condition.icon : "—";
+      const label = document.createElement("span");
+      label.className = "history__condition-label";
+      label.textContent = condition ? condition.label : "Unknown";
+      conditionWrap.append(icon, label);
+      conditionCell.append(conditionWrap);
+
+      const temperature = Number.isFinite(row.temperature)
+        ? `${row.temperature.toFixed(1)}${unit}`
+        : "—";
+      const humidity = Number.isFinite(row.humidity)
+        ? `${Math.round(row.humidity)}%`
+        : "—";
+
+      tr.append(
+        timeCell,
+        conditionCell,
+        historyReadingCell(temperature),
+        historyReadingCell(humidity),
+      );
+      fragment.append(tr);
+    });
+
+  dom.historyBody.replaceChildren(fragment);
+}
+
+async function loadHistory() {
+  if (state.historyRequest) state.historyRequest.abort();
+  const controller = new AbortController();
+  state.historyRequest = controller;
+  const timeout = window.setTimeout(() => controller.abort(), 12000);
+
+  dom.historyPlace.textContent = state.place.name;
+  if (!state.historyLoaded) showHistoryMessage("Loading history…");
+
+  const query = new URLSearchParams({
+    latitude: state.place.latitude.toFixed(4),
+    longitude: state.place.longitude.toFixed(4),
+    units: state.units,
+  });
+
+  try {
+    const response = await fetch(`/api/history?${query}`, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok || !data) {
+      throw new Error(
+        (data && typeof data.error === "string" && data.error) ||
+          `History service returned ${response.status}.`,
+      );
+    }
+
+    renderHistory(data);
+    state.historyLoaded = true;
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    if (!state.historyLoaded) {
+      showHistoryMessage("Couldn't load the past 24 hours. It will retry shortly.");
+    }
+  } finally {
+    window.clearTimeout(timeout);
+    if (state.historyRequest === controller) state.historyRequest = null;
+  }
+}
+
 /* ---------- search ---------- */
 
 function closeResults() {
@@ -554,7 +697,9 @@ function selectPlace(place) {
   dom.input.value = "";
   closeResults();
   syncUrl();
+  state.historyLoaded = false;
   loadWeather();
+  loadHistory();
 }
 
 /* ---------- location ---------- */
@@ -577,6 +722,8 @@ function useMyLocation() {
       };
       safeWrite(STORAGE_KEYS.place, JSON.stringify(state.place));
       syncUrl();
+      state.historyLoaded = false;
+      loadHistory();
       loadWeather().finally(() => {
         dom.locate.disabled = false;
       });
@@ -611,6 +758,7 @@ function toggleUnits() {
   applyUnits();
   renderSensor();
   loadWeather();
+  loadHistory();
 }
 
 /* ---------- init ---------- */
@@ -674,11 +822,17 @@ function init() {
     if (document.visibilityState === "visible" && Date.now() - state.lastUpdated > REFRESH_INTERVAL_MS) {
       loadWeather();
     }
-    if (document.visibilityState === "visible") loadSensor();
+    if (document.visibilityState === "visible") {
+      loadSensor();
+      loadHistory();
+    }
   });
 
   window.setInterval(() => {
-    if (document.visibilityState === "visible") loadWeather();
+    if (document.visibilityState === "visible") {
+      loadWeather();
+      loadHistory();
+    }
   }, REFRESH_INTERVAL_MS);
 
   window.setInterval(updateRelativeStatus, 30 * 1000);
@@ -688,6 +842,7 @@ function init() {
   pollSensor();
 
   loadWeather();
+  loadHistory();
 }
 
 init();
